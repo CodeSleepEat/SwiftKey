@@ -1,0 +1,139 @@
+---
+title: "Data Science Capstone Project"
+output: html_document
+---
+
+## Milestone Report
+
+### Introduction
+
+This Report represents the MileStone Report for the SwiftKey Project, which is the Capstone Project for the Data Science Specialization on Coursera.
+This Milestone Report gives an overview of the Loading, Cleaning and descriptive/ explorative Data Analysis of the Data.
+
+### Loading the data
+
+The following Code will load the required Packages and the data into R. The dataset is available in different languages. In this Report we will take a look at the English dataset. There are three files: Twitter, News, Blogs.
+
+
+
+```{r, cache = T}
+library(tm)
+library(stringi)
+library(ngram)
+library(stringr)
+
+twitter_con <- file("C:/Users/maier/Desktop/Datensätze/SwiftKey/en_US.twitter.txt", "r")
+twitter <- readLines(twitter_con, skipNul = T, warn = F)
+close(twitter_con)
+
+blogs_con <- file("C:/Users/maier/Desktop/Datensätze/SwiftKey/en_US.blogs.txt", "r")
+blogs <- readLines(blogs_con, skipNul = T, warn = F)
+close(blogs_con)
+
+news_con <- file("C:/Users/maier/Desktop/Datensätze/SwiftKey/en_US.news.txt", "r")
+news <- readLines(news_con, skipNul = T, warn = F)
+close(news_con)
+
+```
+
+### Descriptive Data Analysis
+
+In the following we will take a first look at the datasets. The following code outputs basic summaries about each of the three datasets:
+
+```{r}
+library(stringi)
+# Number of lines
+basic_summaries_length <- data.frame(c("Twitter", "Blogs", "News"), c(length(twitter), length(blogs), length(news)))
+names(basic_summaries_length) <- c("Dataset", "Length")
+basic_summaries_length
+
+# Total Number of Words
+twitter_words <- stri_count_words(twitter)
+blogs_words <- stri_count_words(blogs)
+news_words <- stri_count_words(news)
+basic_summaries_sumwords <- data.frame(c("Twitter", "Blogs", "News"), c(sum(twitter_words), sum(blogs_words), sum(news_words)))
+names(basic_summaries_sumwords) <- c("Dataset", "Sum of Words")
+basic_summaries_sumwords
+
+# Average Number of Words
+basic_summaries_meanwords <- data.frame(c("Twitter", "Blogs", "News"), c(mean(twitter_words), mean(blogs_words), mean(news_words)))
+names(basic_summaries_meanwords) <- c("Dataset", "Average Number of Words")
+basic_summaries_meanwords
+par(mfrow = c(3, 1))
+boxplot(twitter_words, main = "Boxplot of the Number of Words in the Twitter Dataset",
+        horizontal = T)
+boxplot(blogs_words, main = "Boxplot of the Number of Words in the Blogs Dataset",
+        horizontal = T)
+boxplot(news_words, main = "Boxplot of the Number of Words in the News Dataset",
+        horizontal = T)
+```
+
+### Data Cleaning
+
+In the next step we are going to combine the data into one dataset and only take a few samples from the three datasets because they are so big and we might run into memory or performance issues. Then we are going to clean the data, e.g. by removing unneccesary spaces or symbols.
+
+```{r}
+library(tm)
+twitter_sample <- sample(twitter, length(twitter)*0.01)
+blogs_sample <- sample(blogs, length(blogs)*0.01)
+news_sample <- sample(news, length(news)*0.01)
+dataset <- c(twitter_sample, blogs_sample, news_sample)
+head(dataset)
+length(dataset)
+dataset_corpus <- VCorpus(VectorSource(dataset))
+dataset_corpus <- tm_map(dataset_corpus, tolower)
+dataset_corpus <- tm_map(dataset_corpus, removeWords, stopwords("en"))
+dataset_corpus <- tm_map(dataset_corpus, removePunctuation)
+dataset_corpus <- tm_map(dataset_corpus, removeNumbers)
+dataset_corpus <- tm_map(dataset_corpus, stripWhitespace)
+dataset_corpus <- tm_map(dataset_corpus, PlainTextDocument)
+
+```
+
+
+### Modeling
+In this chapter we are going to look at 1-, 2 and 3-gram models. With these models we will look at the most frequently occuring words or words combinations.
+
+
+```{r}
+library(ngram)
+library(stringr)
+
+dataset_ngram <- unlist(sapply(dataset_corpus, `[`, "content"))
+dataset_ngram <- dataset_ngram[dataset_ngram != " "]
+dataset_ngram <- dataset_ngram[dataset_ngram != ""]
+dataset_ngram <- dataset_ngram[sapply(dataset_ngram, wordcount) > 0]
+dataset_ngram <- str_trim(dataset_ngram, "both")
+
+par(mar=c(10,4,4,1)+.1)
+
+ngram_1 <- ngram(dataset_ngram, n = 1)
+ngram_1_table <- get.phrasetable(ngram_1)
+ngram_1_table <- ngram_1_table[ngram_1_table[[1]] != "", ]
+head(ngram_1_table)
+barplot(ngram_1_table[1:10, 2], names.arg = ngram_1_table[1:10, 1], main = "Top 10 Unigram", las = 2)
+
+dataset_ngram <- dataset_ngram[sapply(dataset_ngram, wordcount) > 1]
+ngram_2 <- ngram(dataset_ngram, n = 2)
+ngram_2_table <- get.phrasetable(ngram_2)
+ngram_2_table <- ngram_2_table[ngram_2_table[[1]] != " ", ]
+head(ngram_2_table)
+barplot(ngram_2_table[1:10, 2], names.arg = ngram_2_table[1:10, 1], main = "Top 10 Bigram", las = 2)
+
+dataset_ngram <- dataset_ngram[sapply(dataset_ngram, wordcount) > 2]
+ngram_3 <- ngram(dataset_ngram, n = 3)
+ngram_3_table <- get.phrasetable(ngram_3)
+ngram_3_table <- ngram_3_table[ngram_3_table[[1]] != "", ]
+head(ngram_3_table)
+barplot(ngram_3_table[1:10, 2], names.arg = ngram_3_table[1:10, 1], main = "Top 10 Trigram", las = 2)
+
+```
+
+### Conclusion
+
+In this report we showed the Loading and Cleaning of the dataset as well as some descriptive and explorative data analysis. We finished the report with some first and simple modeling. In the next step we will build the final prediction model and finally deploy the model on a shiny-app.
+The final model will consist of some n-gram model. It will take all prior known words up to a maximum number (like the mean word-count of a sentence) and use that number of words as the n for the n-gram-model. This way the algorithm would take into account the given number of words but doesn't use too many words (if the user already typed more sentences). The App will need an inpzt field so the user can input the text as well as afew label fields to show the predictions.
+
+
+
+
